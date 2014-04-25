@@ -300,7 +300,6 @@ public class ChowLiu {
 		//model.initTabelWithoutSettingValue();
 		model.initEmptyFactor();
 		
-		//model.initTabelWithoutSettingValue();
 		ChowLiu chowLiu = new ChowLiu();
 
 		chowLiu.model = model;
@@ -308,14 +307,24 @@ public class ChowLiu {
 		chowLiu.initMutualInfoPair();
 		chowLiu.readTrainingDataOnFile(training_data);
 		chowLiu.computeMutualInfo();
+		chowLiu.sortByDescendOrder();
+		chowLiu.generateChowLiuFactor();
+		
+		model.initTabelWithoutSettingValue();
+		FODParam fodParam = new FODParam(model);
+
+		fodParam.readTrainingDataOnFile(training_data);
+		fodParam.runFODParam();
+		fodParam.origModel = origModel;
+		double logLikelihoodDiff = fodParam.testLikelihoodOnFileAndCompare(test_data);
 		//double logLikelihoodDiff = expectMax.testLikelihoodOnFileAndCompare(test_data);
 
 		// FileOutputStream output = new FileOutputStream(output_uai);
 		System.out.println("______________________________________________________");
-		//System.out.println("log likelihood difference = " + logLikelihoodDiff);
+		System.out.println("log likelihood difference = " + logLikelihoodDiff);
 		System.out.println("______________________________________________________");
 
-		//expectMax.dumpNetworkAsUAI(output_uai);
+		fodParam.dumpNetworkAsUAI(output_uai);
 	}
 
 }
