@@ -6,187 +6,214 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
-
+import java.util.PriorityQueue;
 
 public class ChowLiu {
-	
+
 	GraphicalModel model;
 	GraphicalModel origModel;
-	
+
 	ArrayList<MutualInfo> pairs;
 	LinkedList<Evidence> evidenceSet;
+	ArrayList<ArrayList<Double>> prVariable;
+	ArrayList<ArrayList<Double>> pairVariable;
+
+	MaxHeap maxHeap;
+
 	int numEvidence;
-	
-	public class MutualInfo implements Comparable<MutualInfo> {
-		ArrayList<Variable> varPair = new ArrayList<>(2);
-		double mutualInfo;
-		@Override
-		public int compareTo(MutualInfo o) {
-			// TODO Auto-generated method stub
-			return Double.compare(this.mutualInfo, o.mutualInfo);
-		}
-		
-		public MutualInfo(Variable var1, Variable var2) {
-			varPair.add(var1);
-			varPair.add(var2);
-		}
-		
-		public Variable from() {
-			return varPair.get(0);
-		}
-		
-		public Variable to() {
-			return varPair.get(1);
-		}
-		
-		/**
-		 * 
-		 * @param index
-		 *            of table
-		 * @return the set of the values of correspending variables
-		 */
-		public int[] tableIndexToVaraibleValue(int index) {
-			int[] values = new int[2];
 
-			int denum = varPair.get(0).domainSize() * varPair.get(1).domainSize();
+	private void computeVariableProbability() {
+		prVariable = new ArrayList<>(model.variables.size());
 
-			for (int i = 0; i < values.length; i++) {
-				denum /= varPair.get(i).domainSize();
-				int trueValue = index / denum;
-				index %= denum;
-				values[i] = trueValue;
-			}
-
-			return values;
-		}
-
-		/**
-		 * do reversely with tableIndexToVaraibleValue
-		 * 
-		 * @param values
-		 *            the indices of values of variables
-		 * @return the index of table
-		 */
-		public int variableValueToTableIndex(int[] values) {
-			int multi = 1;
-			int index = 0;
-
-			for (int i = values.length - 1; i >= 0; i--) {
-				index += values[i] * multi;
-				multi *= varPair.get(i).domainSize();
-			}
-
-			return index;
-		}
-		
-		public int tableSize() {
-			return varPair.get(0).domainSize() * varPair.get(1).domainSize();
-		}
-		
-		public void setValues(int[] values) {
-			varPair.get(0).setSoftEvidence(values[0]);
-			varPair.get(1).setSoftEvidence(values[1]);
-		}
-	}
-	
-	
-	public ArrayList<MutualInfo> initMutualInfoPair() {
-		int n = model.variables.size();
-		pairs = new ArrayList<>((n * n - n) / 2);
-		
 		for (int i = 0; i < model.variables.size(); i++) {
-			for (int j = i + 1; j < model.variables.size(); j++) {
-				MutualInfo mutualInfo = new MutualInfo(model.getVariable(i), model.getVariable(j));
-				pairs.add(mutualInfo);
+			Variable var = model.getVariable(i);
+			ArrayList<Double> varRespect = new ArrayList<>(var.domainSize());
+			int numXi = 0;
+
+			for (int j = 0; j < var.domainSize(); j++) {
+				for (Evidence e : evidenceSet) {
+					if (e.isConsistentWith(var, j)) {
+						numXi++;
+					}
+				}
+
+				varRespect.add((double) numXi / evidenceSet.size());
 			}
+
+			prVariable.add(varRespect);
 		}
-		
-		return pairs;
 	}
-	
-	public ArrayList<MutualInfo> computeMutualInfo() {
+
+	private void computePairProbability() {
+		pairVariable = new ArrayList<>(pairs.size());
+
 		for (int i = 0; i < pairs.size(); i++) {
 			MutualInfo mutualInfo = pairs.get(i);
-			
+			ArrayList<Double> pairRespect = new ArrayList<>(
+					mutualInfo.tableSize());
+			int numXiXj = 0;
+
 			for (int j = 0; j < mutualInfo.tableSize(); j++) {
 				int[] values = mutualInfo.tableIndexToVaraibleValue(j);
-				
 				mutualInfo.setValues(values);
-				
-				int numXiXj = 0;
-				int numXi = 0;
-				int numXj = 0;
 
 				for (Evidence e : evidenceSet) {
 					if (e.isConsistentWith(mutualInfo.varPair, values)) {
 						numXiXj++;
 					}
-					if (e.isConsistentWith(mutualInfo.varPair.get(0), values[0])) {
-						numXi++;
-					}
-					if (e.isConsistentWith(mutualInfo.varPair.get(1), values[1])) {
-						numXj++;
-					}
 				}
+				pairRespect.add((double) numXiXj / evidenceSet.size());
+			}
+			pairVariable.add(pairRespect);
+		}
+	}
 
-				if (numXi == 0 || numXj == 0) {
-					mutualInfo.mutualInfo += 0.0;
+	public ArrayList<MutualInfo> initMutualInfoPair() {
+		int n = model.variables.size();
+		pairs = new ArrayList<>((n * n - n) / 2);
+
+		for (int i = 0; i < model.variables.size(); i++) {
+			for (int j = i + 1; j < model.variables.size(); j++) {
+				MutualInfo mutualInfo = new MutualInfo(model.getVariable(i),
+						model.getVariable(j));
+				pairs.add(mutualInfo);
+			}
+		}
+
+		return pairs;
+	}
+
+	public ArrayList<MutualInfo> computeMutualInfo() {
+		System.out.println("2.1");
+		computeVariableProbability();
+		System.out.println("2.2");
+		computePairProbability();
+		System.out.println("2.3");
+
+		for (int i = 0; i < pairs.size(); i++) {
+			MutualInfo mutualInfo = pairs.get(i);
+
+			for (int j = 0; j < mutualInfo.tableSize(); j++) {
+				int[] values = mutualInfo.tableIndexToVaraibleValue(j);
+
+				mutualInfo.setValues(values);
+
+				double PrD_Xi_and_Xj = pairVariable.get(i).get(j);
+				double PrD_Xi = prVariable.get(mutualInfo.from().index).get(
+						values[0]);
+				double PrD_Xj = prVariable.get(mutualInfo.to().index).get(
+						values[1]);
+
+				if (PrD_Xi == 0.0 || PrD_Xj == 0.0) {
 					continue;
 				}
 
-				double PrD_Xi_and_Xj = (double) numXiXj / evidenceSet.size();
-				double PrD_Xi = (double) numXi / evidenceSet.size();
-				double PrD_Xj = (double) numXj / evidenceSet.size();
-				mutualInfo.mutualInfo += PrD_Xi_and_Xj * (Math.log(PrD_Xi_and_Xj / (PrD_Xi * PrD_Xj)) / Math.log(2));
-
+				mutualInfo.mutualInfo += PrD_Xi_and_Xj
+						* (Math.log(PrD_Xi_and_Xj / (PrD_Xi * PrD_Xj)) / Math
+								.log(2));
 			}
 		}
-		
+
 		return pairs;
 	}
-	
+
 	public ArrayList<MutualInfo> sortByDescendOrder() {
-		Collections.sort(pairs);
-		Collections.reverse(pairs);
-		
+		// Collections.sort(pairs);
+		// Collections.reverse(pairs);
+
 		return pairs;
 	}
-	
+
+	public void generateMST() {
+		ArrayList<VariableNode> nodeList = new ArrayList<>(
+				model.variables.size());
+
+		for (Variable var : model.variables) {
+			nodeList.add(new VariableNode(var));
+		}
+
+		LinkedList<VariableNode> nodeListCopy = new LinkedList<>(nodeList);
+		maxHeap = new MaxHeap(nodeList);
+
+		Variable s = pairs.get(0).from();
+		nodeList.get(s.index).key = 0.0;
+
+		while (!maxHeap.isEmpty()) {
+			VariableNode u = nodeList.get(maxHeap.deleteMax());
+			nodeListCopy.remove(u);
+
+			for (VariableNode v : nodeListCopy) {
+				if (weight(u.variable, v.variable) > v.key) {
+					v.prev = u;
+					maxHeap.increaseElement(v.variable.index,
+							weight(u.variable, v.variable));
+				}
+			}
+		}
+
+		for (VariableNode u : nodeList) {
+			if (null != u.prev) {
+				model.getFactor(u.variable.index).variables.add(0,
+						u.prev.variable);
+			}
+		}
+	}
+
+	public double weight(Variable from, Variable to) {
+		if (from.index > to.index) {
+			Variable tmp = from;
+			from = to;
+			to = tmp;
+		}
+
+		int fromIndex = 0;
+		int n = model.variables.size();
+
+		for (int i = 1; i < from.index; i++) {
+			fromIndex += (n - i);
+		}
+
+		fromIndex += (to.index - from.index - 1);
+
+		return pairs.get(fromIndex).mutualInfo;
+	}
+
 	public GraphicalModel generateChowLiuFactor() {
 		for (int i = 0; i < pairs.size(); i++) {
 			MutualInfo mutualInfo = pairs.get(i);
-			
-			if(pathExists(mutualInfo.from(), mutualInfo.to())) {
+
+			if (pathExists(mutualInfo.from(), mutualInfo.to())) {
 				continue;
 			}
-			
-			model.factors.get(mutualInfo.to().index).variables.add(0, mutualInfo.from());
+
+			model.factors.get(mutualInfo.to().index).variables.add(0,
+					mutualInfo.from());
 		}
-		
+
 		return model;
 	}
-	
+
 	public boolean pathExists(Variable from, Variable to) {
 		Factor fromFactor = model.getFactor(from.index);
-		//Factor toFactor = model.getFactor(to.index);
-		
+		Factor toFactor = model.getFactor(to.index);
+
 		if (from == to) {
 			return true;
 		}
-		
-		if(fromFactor.variables.contains(to)) {
+
+		if (toFactor.variables.contains(from)) {
 			return true;
 		}
-		
-		for (int i = 0; i < fromFactor.numScopes() - 1; i++) {
-			if(pathExists(fromFactor.variables.get(i), to)) {
+
+		for (int i = 0; i < toFactor.numScopes() - 1; i++) {
+			if (pathExists(from, toFactor.variables.get(i))) {
 				return true;
 			}
 		}
-		
+
 		return false;
 	}
-	
+
 	public void readEvidenceSet(BufferedReader reader) {
 		evidenceSet = new LinkedList<>();
 
@@ -294,35 +321,43 @@ public class ChowLiu {
 		String test_data = args[2];
 		String output_uai = args[3];
 
-		
 		GraphicalModel model = new GraphicalModel(input_uai, false, false);
 		GraphicalModel origModel = new GraphicalModel(input_uai, true);
-		//model.initTabelWithoutSettingValue();
+		// model.initTabelWithoutSettingValue();
 		model.initEmptyFactor();
-		
+
 		ChowLiu chowLiu = new ChowLiu();
 
 		chowLiu.model = model;
 		chowLiu.origModel = origModel;
 		chowLiu.initMutualInfoPair();
+		System.out.println(1);
 		chowLiu.readTrainingDataOnFile(training_data);
+		System.out.println(2);
 		chowLiu.computeMutualInfo();
+		System.out.println(3);
 		chowLiu.sortByDescendOrder();
+		System.out.println(4);
 		chowLiu.generateChowLiuFactor();
-		
+		System.out.println(5);
+
 		model.initTabelWithoutSettingValue();
 		FODParam fodParam = new FODParam(model);
 
 		fodParam.readTrainingDataOnFile(training_data);
 		fodParam.runFODParam();
 		fodParam.origModel = origModel;
-		double logLikelihoodDiff = fodParam.testLikelihoodOnFileAndCompare(test_data);
-		//double logLikelihoodDiff = expectMax.testLikelihoodOnFileAndCompare(test_data);
+		double logLikelihoodDiff = fodParam
+				.testLikelihoodOnFileAndCompare(test_data);
+		// double logLikelihoodDiff =
+		// expectMax.testLikelihoodOnFileAndCompare(test_data);
 
 		// FileOutputStream output = new FileOutputStream(output_uai);
-		System.out.println("______________________________________________________");
+		System.out
+				.println("______________________________________________________");
 		System.out.println("log likelihood difference = " + logLikelihoodDiff);
-		System.out.println("______________________________________________________");
+		System.out
+				.println("______________________________________________________");
 
 		fodParam.dumpNetworkAsUAI(output_uai);
 	}
