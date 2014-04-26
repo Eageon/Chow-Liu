@@ -1,7 +1,7 @@
 
 public class VariableNode implements Comparable<VariableNode> {
 		Variable variable;
-		double key = Double.MAX_VALUE;
+		double key = Double.NEGATIVE_INFINITY;
 		VariableNode prev = null;
 		
 		public VariableNode(Variable var) {

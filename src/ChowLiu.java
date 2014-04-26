@@ -84,11 +84,8 @@ public class ChowLiu {
 	}
 
 	public ArrayList<MutualInfo> computeMutualInfo() {
-		System.out.println("2.1");
 		computeVariableProbability();
-		System.out.println("2.2");
 		computePairProbability();
-		System.out.println("2.3");
 
 		for (int i = 0; i < pairs.size(); i++) {
 			MutualInfo mutualInfo = pairs.get(i);
@@ -134,9 +131,17 @@ public class ChowLiu {
 
 		LinkedList<VariableNode> nodeListCopy = new LinkedList<>(nodeList);
 		maxHeap = new MaxHeap(nodeList);
+		maxHeap.buildHeap();
 
 		Variable s = pairs.get(0).from();
-		nodeList.get(s.index).key = 0.0;
+		double mu = pairs.get(0).mutualInfo;
+		for (MutualInfo m : pairs) {
+			if(m.mutualInfo > mu) {
+				s = m.from();
+				mu = m.mutualInfo;
+			}
+		}
+		maxHeap.increaseElement(s.index, 0.0);
 
 		while (!maxHeap.isEmpty()) {
 			VariableNode u = nodeList.get(maxHeap.deleteMax());
@@ -155,6 +160,10 @@ public class ChowLiu {
 			if (null != u.prev) {
 				model.getFactor(u.variable.index).variables.add(0,
 						u.prev.variable);
+				
+				if(u.variable == u.prev.variable) {
+					System.out.println("strange" + u.variable.index);
+				}
 			}
 		}
 	}
@@ -331,21 +340,20 @@ public class ChowLiu {
 		chowLiu.model = model;
 		chowLiu.origModel = origModel;
 		chowLiu.initMutualInfoPair();
-		System.out.println(1);
-		chowLiu.readTrainingDataOnFile(training_data);
-		System.out.println(2);
-		chowLiu.computeMutualInfo();
-		System.out.println(3);
-		chowLiu.sortByDescendOrder();
-		System.out.println(4);
-		chowLiu.generateChowLiuFactor();
-		System.out.println(5);
 
+		chowLiu.readTrainingDataOnFile(training_data);
+		
+		chowLiu.computeMutualInfo();
+		
+		chowLiu.generateMST();
+	
+		
+		model.clearEvidence();
 		model.initTabelWithoutSettingValue();
 		FODParam fodParam = new FODParam(model);
-
 		fodParam.readTrainingDataOnFile(training_data);
 		fodParam.runFODParam();
+		
 		fodParam.origModel = origModel;
 		double logLikelihoodDiff = fodParam
 				.testLikelihoodOnFileAndCompare(test_data);
